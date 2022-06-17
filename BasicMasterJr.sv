@@ -172,12 +172,12 @@ module emu
 
 ///////// Default values for ports not used in this core /////////
 
-assign ADC_BUS  = 'Z;
+//assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
+assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;
 
 assign VGA_SL = 0;
 assign VGA_F1 = 0;
@@ -189,6 +189,7 @@ assign AUDIO_L = 0;
 assign AUDIO_R = 0;
 assign AUDIO_MIX = 0;
 
+assign LED_USER = 0;
 assign LED_DISK = 0;
 assign LED_POWER = 0;
 assign BUTTONS = 0;
@@ -200,39 +201,28 @@ wire [1:0] ar = status[122:121];
 assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
 assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 
-`include "build_id.v" 
+`include "build_id.v"
 localparam CONF_STR = {
-	"MyCore;;",
+	"BasicMasterJr;;",
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
-	"O[2],TV Mode,NTSC,PAL;",
-	"O[4:3],Noise,White,Red,Green,Blue;",
-	"-;",
-	"P1,Test Page 1;",
-	"P1-;",
-	"P1-, -= Options in page 1 =-;",
-	"P1-;",
-	"P1O[5],Option 1-1,Off,On;",
-	"d0P1F1,BIN;",
-	"H0P1O[10],Option 1-2,Off,On;",
-	"-;",
-	"P2,Test Page 2;",
-	"P2-;",
-	"P2-, -= Options in page 2 =-;",
-	"P2-;",
-	"P2S0,DSK;",
-	"P2O[7:6],Option 2,1,2,3,4;",
-	"-;",
 	"-;",
 	"T[0],Reset;",
 	"R[0],Reset and close OSD;",
-	"V,v",`BUILD_DATE 
+	"V,v",`BUILD_DATE
 };
 
 wire forced_scandoubler;
 wire   [1:0] buttons;
 wire [127:0] status;
 wire  [10:0] ps2_key;
+
+wire [24:0] ioctl_addr;
+wire  [7:0] ioctl_dout;
+wire  [7:0] ioctl_index;
+wire ioctl_wr;
+wire ioctl_download;
+wire ioctl_wait;
 
 hps_io #(.CONF_STR(CONF_STR)) hps_io
 (
@@ -246,63 +236,104 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.buttons(buttons),
 	.status(status),
 	.status_menumask({status[5]}),
-	
-	.ps2_key(ps2_key)
+
+	.ps2_key(ps2_key),
+
+	.ioctl_download(ioctl_download),
+	.ioctl_wr(ioctl_wr),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_dout(ioctl_dout),
+	.ioctl_wait(ioctl_wait),
+	.ioctl_index(ioctl_index)
 );
 
 ///////////////////////   CLOCKS   ///////////////////////////////
 
-wire clk_sys;
+wire clk_sys, clk_vid;
 pll pll
 (
 	.refclk(CLK_50M),
 	.rst(0),
-	.outclk_0(clk_sys)
+	.outclk_0(clk_sys),
+	.outclk_1(clk_vid) // 5.320*2
 );
 
-wire reset = RESET | status[0] | buttons[1];
+
+reg [5:0] div;
+wire clk_cpu = div == 6'd0;
+
+always @(posedge clk_sys) begin
+  if (div < 6'd63) begin
+    div <= div + 6'd1;
+  end
+  else begin
+    div <= 6'd0;
+  end
+end
+
+wire reset = RESET | status[0] | buttons[1] | ioctl_download;
 
 //////////////////////////////////////////////////////////////////
 
-wire [1:0] col = status[4:3];
+wire hs, vs, hb, vb;
+wire [7:0] red, green, blue;
+wire [3:0] kb_key, kb_mod;
+wire [7:0] kb_col;
+wire key_pressed;
 
-wire HBlank;
-wire HSync;
-wire VBlank;
-wire VSync;
+wire adc_cassette_bit;
+wire active;
 wire ce_pix;
-wire [7:0] video;
 
-mycore mycore
-(
-	.clk(clk_sys),
-	.reset(reset),
-	
-	.pal(status[2]),
-	.scandouble(forced_scandoubler),
-
+core core(
+  .reset(reset),
+  .clk_sys(clk_sys),
+  .clk_cpu(clk_cpu),
+  .clk_vid(clk_vid),
+  .kb_col(kb_col),
+  .kb_key(kb_key),
+  .kb_mod(kb_mod),
+  .key_pressed(key_pressed),
+  .hs(hs),
+  .vs(vs),
+  .hb(hb),
+  .vb(vb),
 	.ce_pix(ce_pix),
-
-	.HBlank(HBlank),
-	.HSync(HSync),
-	.VBlank(VBlank),
-	.VSync(VSync),
-
-	.video(video)
+  .red(red),
+  .green(green),
+  .blue(blue),
+  .tape_bit(adc_cassette_bit),
+  .tape_start(tape_start),
+  .tape_stop(tape_stop)
 );
 
-assign CLK_VIDEO = clk_sys;
+ltc2308_tape #(.ADC_RATE(300), .CLK_RATE(50000000)) ltc2308_tape(
+	.reset(reset),
+	.clk(clk_sys),
+	.ADC_BUS(ADC_BUS),
+	.dout(adc_cassette_bit),
+	.active(active)
+);
+
+keyboard keyboard(
+  .reset(reset),
+  .clk_sys(clk_sys),
+  .ps2_key(ps2_key),
+  .kb_col(kb_col),
+  .kb_key(kb_key),
+  .kb_mod(kb_mod),
+  .status(key_pressed)
+);
+
+assign CLK_VIDEO = clk_vid;
 assign CE_PIXEL = ce_pix;
 
-assign VGA_DE = ~(HBlank | VBlank);
-assign VGA_HS = HSync;
-assign VGA_VS = VSync;
-assign VGA_G  = (!col || col == 2) ? video : 8'd0;
-assign VGA_R  = (!col || col == 1) ? video : 8'd0;
-assign VGA_B  = (!col || col == 3) ? video : 8'd0;
+assign VGA_DE = ~(hb | vb);
+assign VGA_HS = hs;
+assign VGA_VS = vs;
+assign VGA_G  = red;
+assign VGA_R  = green;
+assign VGA_B  = blue;
 
-reg  [26:0] act_cnt;
-always @(posedge clk_sys) act_cnt <= act_cnt + 1'd1; 
-assign LED_USER    = act_cnt[26]  ? act_cnt[25:18]  > act_cnt[7:0]  : act_cnt[25:18]  <= act_cnt[7:0];
 
 endmodule

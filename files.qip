@@ -1,5 +1,11 @@
-set_global_assignment -name VERILOG_FILE rtl/lfsr.v
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/cos.sv
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/mycore.v
-set_global_assignment -name SDC_FILE mycore.sdc
-set_global_assignment -name SYSTEMVERILOG_FILE mycore.sv
+set_global_assignment -name VERILOG_FILE rtl/core.v
+set_global_assignment -name VERILOG_FILE rtl/keyboard.v
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/m6801.sv
+set_global_assignment -name VERILOG_FILE rtl/ram.v
+set_global_assignment -name VERILOG_FILE rtl/dpram.v
+set_global_assignment -name VERILOG_FILE rtl/rom.v
+set_global_assignment -name VERILOG_FILE rtl/video.v
+set_global_assignment -name VERILOG_FILE rtl/x74138.v
+set_global_assignment -name SYSTEMVERILOG_FILE BasicMasterJr.sv
+
+# set_global_assignment -name SDC_FILE BasicMasterJr.sdc
