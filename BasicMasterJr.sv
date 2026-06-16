@@ -261,16 +261,14 @@ pll pll
 );
 
 
-reg [5:0] div;
-wire clk_cpu = div == 6'd0;
+reg [6:0] div;  // 7 bits for divider 0-73
+wire clk_cpu = div == 7'd0;
 
 always @(posedge clk_sys) begin
-  if (div < 6'd63) begin
-    div <= div + 6'd1;
-  end
-  else begin
-    div <= 6'd0;
-  end
+  if (div < 7'd73)
+    div <= div + 7'd1;
+  else
+    div <= 7'd0;
 end
 
 wire reset = RESET | status[0] | buttons[1] | ioctl_download;
