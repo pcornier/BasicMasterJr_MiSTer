@@ -6,6 +6,8 @@ set_global_assignment -name VERILOG_FILE rtl/dpram.v
 set_global_assignment -name VERILOG_FILE rtl/rom.v
 set_global_assignment -name VERILOG_FILE rtl/video.v
 set_global_assignment -name VERILOG_FILE rtl/x74138.v
+set_global_assignment -name VERILOG_FILE rtl/cassette.v
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE BasicMasterJr.sv
 
 # set_global_assignment -name SDC_FILE BasicMasterJr.sdc

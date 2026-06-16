@@ -176,7 +176,7 @@ module emu
 assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
+assign SDRAM_CLK = clk_sys;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;
 
 assign VGA_SL = 0;
@@ -204,6 +204,8 @@ assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 `include "build_id.v"
 localparam CONF_STR = {
 	"BasicMasterJr;;",
+	"-;",
+	"F1,Tape,Load;",
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"-;",
@@ -282,8 +284,55 @@ wire [7:0] kb_col;
 wire key_pressed;
 
 wire adc_cassette_bit;
-wire active;
 wire ce_pix;
+
+// SDRAM wires for tape loading
+wire [24:0] sdram_addr;
+wire [15:0] sdram_data;
+wire sdram_rd;
+wire sdram_we;
+wire [1:0] sdram_wtbt = 2'b00;
+wire sdram_ready;
+wire tape_start;
+wire tape_stop;
+
+sdram sdram_inst(
+  .init(reset),
+  .clk(clk_sys),
+  .wtbt(sdram_wtbt),
+  .addr(ioctl_download ? ioctl_addr : sdram_addr),
+  .dout(sdram_data),
+  .din({8'd0, ioctl_dout}),
+  .we(ioctl_download & ioctl_wr),
+  .rd(sdram_rd),
+  .ready(sdram_ready),
+  .SDRAM_CKE(SDRAM_CKE),
+  .SDRAM_CLK(),
+  .SDRAM_A(SDRAM_A),
+  .SDRAM_BA(SDRAM_BA),
+  .SDRAM_DQ(SDRAM_DQ),
+  .SDRAM_DQML(SDRAM_DQML),
+  .SDRAM_DQMH(SDRAM_DQMH),
+  .SDRAM_nCS(SDRAM_nCS),
+  .SDRAM_nRAS(SDRAM_nRAS),
+  .SDRAM_nCAS(SDRAM_nCAS),
+  .SDRAM_nWE(SDRAM_nWE)
+);
+
+cassette cassette(
+  .clk_sys(clk_sys),
+  .reset(reset),
+  .tape_start(tape_start),
+  .sdram_addr(sdram_addr),
+  .sdram_data(sdram_data),
+  .sdram_rd(sdram_rd),
+  .sdram_we(sdram_we),
+  .sdram_wtbt(sdram_wtbt),
+  .sdram_ready(sdram_ready),
+  .tape_bit(adc_cassette_bit),
+  .tape_bit_stable_out(),
+  .status()
+);
 
 core core(
   .reset(reset),
@@ -305,14 +354,6 @@ core core(
   .tape_bit(adc_cassette_bit),
   .tape_start(tape_start),
   .tape_stop(tape_stop)
-);
-
-ltc2308_tape #(.ADC_RATE(300), .CLK_RATE(50000000)) ltc2308_tape(
-	.reset(reset),
-	.clk(clk_sys),
-	.ADC_BUS(ADC_BUS),
-	.dout(adc_cassette_bit),
-	.active(active)
 );
 
 keyboard keyboard(
